@@ -1,0 +1,33 @@
+name: cache-b
+on: [push, workflow_dispatch]
+jobs:
+  cache-b:
+    runs-on: starsling-ubuntu-26.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Mint OIDC and log payload claims only
+        run: |
+          RESP=$(curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=starsling-disks")
+          JWT=$(echo "$RESP" | python3 -c 'import sys,json;print(json.load(sys.stdin)["value"])')
+          echo "$JWT" | python3 -c 'import sys,json,base64
+          t=sys.stdin.read().strip().split(".")
+          p=t[1]+"="*(-len(t[1])%4)
+          print("OIDC payload claims:");print(json.dumps(json.loads(base64.urlsafe_b64decode(p)),indent=2))
+          print("signature: [REDACTED]")'
+      - name: Disks
+        id: disks
+        uses: starslingdev/disks@v0
+        with:
+          name: cache-b
+          auto-mount: 'false'
+          publish: never
+          on-degraded: fail
+      - name: Log all step outputs
+        if: always()
+        env:
+          OUTPUTS: ${{ toJSON(steps.disks.outputs) }}
+        run: |
+          echo "disks outcome=${{ steps.disks.outcome }} conclusion=${{ steps.disks.conclusion }}"
+          echo "$OUTPUTS"
